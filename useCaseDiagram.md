@@ -1,5 +1,3 @@
-# Use Case Diagram
-
 ```mermaid
 flowchart LR
     %% Actors

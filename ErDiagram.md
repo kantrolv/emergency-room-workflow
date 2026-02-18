@@ -1,121 +1,118 @@
-# Entity Relationship Diagram (ERD)
+# MongoDB Collection Design
 
 ```mermaid
 erDiagram
 
-    %% User Management
+    %% User Collection
     USERS {
-        uuid id PK
-        varchar email UK
-        varchar password_hash
-        varchar full_name
-        uuid role_id FK "References ROLES"
-        timestamp created_at
-        timestamp last_login
+        ObjectId _id PK
+        string email UK
+        string password_hash
+        string full_name
+        string role "Enum: ADMIN, DOCTOR, NURSE, RECEPTIONIST"
+        string[] permissions
+        date created_at
+        date last_login
     }
 
-    ROLES {
-        int id PK
-        varchar name UK "ADMIN, DOCTOR, NURSE, RECEPTIONIST"
-        json permissions "Access Control List"
-    }
-
-    %% Patient Management
+    %% Patient Collection - Core Entity
     PATIENTS {
-        uuid id PK
-        varchar mrn UK "Medical Record Number"
-        varchar first_name
-        varchar last_name
+        ObjectId _id PK
+        string mrn UK "Medical Record Number"
+        string first_name
+        string last_name
         date dob
-        varchar gender
-        varchar contact_number
-        varchar address
-        varchar current_status "REGISTERED, TRIAGED, WAITING, UNDER_TREATMENT, ADMITTED, DISCHARGED"
-        timestamp created_at
-        timestamp updated_at
+        string gender
+        string contact_number
+        string address
+        string current_status "REGISTERED, TRIAGED, WAITING, UNDER_TREATMENT, ADMITTED, DISCHARGED"
+        ObjectId current_bed_id FK "Reference to BEDS (Nullable)"
+        date created_at
+        date updated_at
+        object[] history "Embedded summaries (optional)"
     }
 
+    %% Triage Records - High Volume (Referenced)
     TRIAGE_RECORDS {
-        uuid id PK
-        uuid patient_id FK
-        uuid nurse_id FK
-        int heart_rate
-        int sys_bp
-        int dia_bp
-        decimal temperature
-        int spo2
-        varchar chief_complaint
-        varchar severity_level "CRITICAL, HIGH, MEDIUM, LOW"
+        ObjectId _id PK
+        ObjectId patient_id FK
+        ObjectId nurse_id FK
+        object vitals "{ hr, bp_sys, bp_dia, temp, spo2 }"
+        string chief_complaint
+        string severity_level "CRITICAL, HIGH, MEDIUM, LOW"
         int risk_score
-        timestamp created_at
+        date created_at
     }
 
-    %% Beds & Admissions
+    %% Beds - Resource Management
     BEDS {
-        uuid id PK
-        varchar bed_number UK
-        varchar ward_type "ICU, GENERAL, OBSERVATION"
+        ObjectId _id PK
+        string bed_number UK
+        string ward_type "ICU, GENERAL, OBSERVATION"
         boolean is_occupied "For fast checking"
-        uuid current_admission_id FK "Nullable, references ADMISSIONS"
-        timestamp last_sanitized_at
+        ObjectId current_admission_id FK "Reference to ADMISSIONS (Nullable)"
+        date last_sanitized_at
+        int version "For Optimistic Locking"
     }
 
+    %% Admissions - Tracks Bed Usage history
     ADMISSIONS {
-        uuid id PK
-        uuid patient_id FK
-        uuid doctor_id FK
-        uuid bed_id FK
-        timestamp admitted_at
-        timestamp discharged_at "Nullable"
-        varchar discharge_reason
-        text admission_notes
+        ObjectId _id PK
+        ObjectId patient_id FK
+        ObjectId doctor_id FK
+        ObjectId bed_id FK
+        date admitted_at
+        date discharged_at "Nullable"
+        string discharge_reason
+        string admission_notes
     }
 
+    %% Treatments - Clinical Notes (Can be Embedded or Referenced)
     TREATMENTS {
-        uuid id PK
-        uuid admission_id FK "Nullable if treated without admission"
-        uuid patient_id FK
-        uuid doctor_id FK
-        text diagnosis
-        text procedures
-        text medication_prescribed
-        timestamp treatment_time
+        ObjectId _id PK
+        ObjectId admission_id FK "Nullable"
+        ObjectId patient_id FK
+        ObjectId doctor_id FK
+        string diagnosis
+        string procedures
+        string[] medications
+        date treatment_time
     }
 
-    %% Logs & Notifications
+    %% Audit Logs - Immutable, Append-Only
     AUDIT_LOGS {
-        bigint id PK
-        uuid user_id FK
-        varchar action
-        varchar resource_type
-        uuid resource_id
-        json old_values
-        json new_values
-        timestamp created_at
+        ObjectId _id PK
+        ObjectId actor_id FK
+        string role
+        string action "PATIENT_ADMIT, BED_ASSIGN, TRIAGE_UPDATE"
+        string resource_type
+        ObjectId resource_id
+        object old_values "Snapshot"
+        object new_values "Snapshot"
+        date timestamp
     }
     
+    %% Notifications - Event System
     NOTIFICATIONS {
-        uuid id PK
-        uuid recipient_id FK
-        varchar message
+        ObjectId _id PK
+        ObjectId recipient_id FK
+        string message
         boolean is_read
-        varchar type "ALERT, INFO, WARNING"
-        timestamp created_at
+        string type "ALERT, INFO, WARNING"
+        date created_at
     }
 
-    %% Relationships
-    USERS }|--|| ROLES : has
-    PATIENTS ||--|{ TRIAGE_RECORDS : "has history of"
-    TRIAGE_RECORDS }|--|| USERS : "performed by (Nurse)"
-    
-    PATIENTS ||--o{ ADMISSIONS : "may have"
-    ADMISSIONS }|--|| BEDS : "occupies"
-    ADMISSIONS }|--|| USERS : "managed by (Doctor)"
-    
-    PATIENTS ||--o{ TREATMENTS : "receives"
-    TREATMENTS }|--|| USERS : "administered by (Doctor)"
-    
+    %% Relationships (Logical)
     USERS ||--o{ AUDIT_LOGS : "performs"
     USERS ||--o{ NOTIFICATIONS : "receives"
     
+    PATIENTS ||--|{ TRIAGE_RECORDS : "has (1:M)"
+    TRIAGE_RECORDS }o--|| USERS : "by Nurse"
+    
+    PATIENTS ||--o{ ADMISSIONS : "history of (1:M)"
+    ADMISSIONS }|--|| BEDS : "occupies"
+    ADMISSIONS }o--|| USERS : "managed by Doctor"
+    
+    PATIENTS ||--o{ TREATMENTS : "receives (1:M)"
+    TREATMENTS }o--|| USERS : "administered by Doctor"
 ```

@@ -1,48 +1,33 @@
-# Domain Class Diagram
+# Domain Class Diagram (Node.js + Clean Architecture)
 
 ```mermaid
 classDiagram
-    %% Abstract User
-    class User {
-        <<Abstract>>
-        +String id
-        +String username
-        +String email
-        +Role role
-        +login()
-        +logout()
+    %% Abstract Repository Interface
+    class IPatientRepository {
+        <<Interface>>
+        +findById(id)
+        +save(patient)
+        +updateStatus(id, newStatus)
     }
 
-    class Doctor {
-        +String specialization
-        +assignPatient(Patient p)
-        +diagnose(Patient p, Diagnosis d)
-        +prescribe(Patient p, Medication m)
-        +discharge(Patient p)
+    class IBedRepository {
+        <<Interface>>
+        +findAvailable()
+        +assignBed(bedId, patientId)
+        +releaseBed(bedId)
     }
 
-    class Nurse {
-        +performTriage(Patient p, Vitals v)
-        +administerMedication(Patient p, Treatment t)
+    class IAuditRepository {
+        <<Interface>>
+        +log(action)
     }
 
-    class Receptionist {
-        +registerPatient(PatientDTO details)
-        +updateContactInfo(Patient p)
-    }
-
-    class Admin {
-        +manageUsers()
-        +viewAuditLogs()
-        +escalateCase(Patient p)
-    }
-
-    %% Patient Entity
+    %% Domain Entities
     class Patient {
+        +String id
         +String mrn
-        +String firstName
-        +String lastName
-        +Date dateOfBirth
+        +String name
+        +Date dob
         +PatientStatus status
         +SeverityLevel severity
         +TriageRecord currentTriage
@@ -52,16 +37,53 @@ classDiagram
         +escalateSeverity()
     }
 
-    %% Value Objects & Enums
-    class PatientStatus {
-        <<Enumeration>>
-        REGISTERED
-        TRIAGED
-        WAITING_FOR_DOCTOR
-        UNDER_TREATMENT
-        ADMITTED
-        DISCHARGED
-        CLOSED
+    class User {
+        +String id
+        +String username
+        +Role role
+        +login()
+        +logout()
+    }
+
+    class Bed {
+        +String id
+        +String bedNumber
+        +WardType type
+        +Boolean isOccupied
+        +assign(Patient p)
+        +release()
+    }
+
+    class TriageRecord {
+        +Date timestamp
+        +VitalSigns vitals
+        +String chiefComplaint
+        +SeverityLevel calculatedSeverity
+        +calculateScore()
+    }
+
+    class Treatment {
+        +Date timestamp
+        +String diagnosis
+        +String procedures
+        +User performingDoctor
+    }
+
+    class AuditLog {
+        +String id
+        +String actorId
+        +String action
+        +String resourceId
+        +Date timestamp
+    }
+
+    %% Value Objects
+    class VitalSigns {
+        +Number heartRate
+        +Number sysBP
+        +Number diaBP
+        +Number temperature
+        +Number spo2
     }
 
     class SeverityLevel {
@@ -72,73 +94,19 @@ classDiagram
         LOW
     }
 
-    class Vitals {
-        +int heartRate
-        +int sysBP
-        +int diaBP
-        +double temperature
-        +int spo2
-    }
-
-    %% Clinical Records
-    class TriageRecord {
-        +Date timestamp
-        +Vitals vitals
-        +String chiefComplaint
-        +SeverityLevel calculatedSeverity
-        +calculateScore()
-    }
-
-    class Treatment {
-        +Date timestamp
-        +String diagnosis
-        +String procedures
-        +String notes
-        +Doctor performingDoctor
-    }
-
-    class Admission {
-        +Date admittedAt
-        +Date dischargedAt
-        +String reason
-        +Bed bed
-    }
-
-    %% Resources
-    class Bed {
-        +String bedNumber
-        +WardType type
-        +boolean isOccupied
-        +Patient currentPatient
-        +assign(Patient p)
-        +release()
-    }
-
-    %% System
-    class AuditLog {
-        +Date timestamp
-        +User actor
-        +String action
-        +String entityId
-        +String changes
-    }
-    
     %% Relationships
     User <|-- Doctor
     User <|-- Nurse
     User <|-- Receptionist
     User <|-- Admin
 
-    Patient "1" *-- "0..*" TriageRecord : history
-    Patient "1" *-- "0..*" Treatment : history
-    Patient "1" o-- "0..1" Admission : current
-    Patient --> PatientStatus
-    Patient --> SeverityLevel
+    Patient "1" *-- "0..*" TriageRecord : has history
+    Patient "1" *-- "0..*" Treatment : has history
+    Patient "1" o-- "0..1" Bed : assigned to
     
-    Admission --> Bed : occupies
-    Bed --> Patient : assigned to
-    
-    Treatment --> Doctor : performed by
-    TriageRecord --> Vitals : contains
-    TriageRecord --> Nurse : recorded by
+    TriageRecord *-- VitalSigns : contains
+
+    IPatientRepository ..> Patient : uses
+    IBedRepository ..> Bed : uses
+    IAuditRepository ..> AuditLog : uses
 ```

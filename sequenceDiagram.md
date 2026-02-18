@@ -1,81 +1,59 @@
-# Patient ER Workflow Sequence Diagram
+# Patient ER Workflow Sequence Diagram (Node.js + Concurrency)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Patient
-    actor Receptionist
-    actor Nurse
     actor Doctor
-    participant System as ER System
-    participant TriageEngine
-    participant QueueService
-    participant BedService
-    participant NotificationService
-    participant Database
+    actor Nurse
+    participant API as API Layer
+    participant UseCase as Service Layer
+    participant TriageDomain as Triage Strategy
+    participant Queue as Priority Queue (Redis/Mongo)
+    participant BedService as Bed Allocation Service
+    participant Mongo as MongoDB (Transaction)
 
-    Note over Patient, Receptionist: Patient Arrival
+    Note over Patient, Nurse: Triage Phase
 
-    Patient->>Receptionist: Provide Details
-    Receptionist->>System: Register Patient (Name, DOB, Symptoms)
-    System->>Database: Create Patient Record (Status: REGISTERED)
-    Database-->>System: Patient ID
-    System-->>Receptionist: Registration Successful
+    Nurse->>API: POST /triage (PatientID, Vitals)
+    API->>UseCase: Invoke PerformTriageUseCase
+    UseCase->>TriageDomain: Calculate Severity(Strategy Pattern)
+    TriageDomain-->>UseCase: Severity = HIGH, Score = 85
+    UseCase->>Queue: Add to Priority Queue (Score 85)
+    UseCase->>Mongo: Update Patient (State=TRIAGED)
+    Mongo-->>UseCase: Success (Audit Logged)
+    UseCase-->>API: 200 OK
 
-    Note over Nurse, System: Triage Phase
+    Note over Doctor, Mongo: Treatment & Admission (Concurrency Critical)
 
-    Nurse->>System: Fetch Registered Patients
-    System->>Nurse: List of untreated patients
-    Nurse->>Patient: Measure Vitals (BP, HR, Temp)
-    Nurse->>System: Submit Triage Assessment (Vitals, Notes)
-    System->>TriageEngine: Calculate Severity Score
-    TriageEngine-->>System: Severity (CRITICAL/HIGH/MEDIUM/LOW)
-    System->>Database: Update Patient (Status: TRIAGED, Severity)
-    System->>QueueService: Add to Priority Queue
-    QueueService-->>System: Queue Position
-    System-->>Nurse: Triage Complete
-
-    Note over System, QueueService: Dynamic Priority Management
-
-    loop Every Minute
-        System->>QueueService: Check Wait Times
-        opt Wait Time > Threshold
-            QueueService->>TriageEngine: Escalate Priority
-            TriageEngine->>System: New Severity (HIGH)
-            System->>NotificationService: Notify Admin (Escalation)
+    Doctor->>API: POST /admit (PatientID, WardType)
+    API->>UseCase: Invoke AdmitPatientUseCase
+    
+    UseCase->>Mongo: Start Transaction (Session)
+    
+    rect rgb(200, 255, 200)
+        Note right of UseCase: Critical Section
+        UseCase->>BedService: FindAvailableBed(WardType)
+        BedService->>Mongo: FindOneAndUpdate({isOccupied: false}, {$set: {lock: true}})
+        alt Bed Available
+            Mongo-->>BedService: Bed Document (Locked)
+            BedService->>Mongo: Create Admission Record
+            BedService->>Mongo: Update Patient State -> ADMITTED
+            BedService->>Mongo: Commit Transaction
+            Mongo-->>UseCase: Success
+            UseCase-->>API: 200 OK (Admitted)
+        else No Bed Available
+            Mongo-->>BedService: Null
+            BedService->>Mongo: Abort Transaction
+            Mongo-->>UseCase: Transaction Rollback
+            UseCase-->>API: 409 Conflict (No Beds)
         end
     end
 
-    Note over Doctor, System: Treatment Phase
+    Note over UseCase, Mongo: Audit & Notification
 
-    Doctor->>System: Get Next Patient
-    System->>QueueService: Pop Highest Priority
-    QueueService-->>System: Patient ID
-    System->>Database: Update Status (UNDER_TREATMENT)
-    System-->>Doctor: Patient Details & History
-    
-    Doctor->>Patient: Perform Examination
-    Doctor->>System: Record Treatment (Diagnosis, Meds)
-    System->>Database: Save Treatment Record
-
-    alt Admission Required
-        Doctor->>System: Request Admission (Ward Type)
-        System->>BedService: Check Availability
-        BedService->>Database: Lock Bed Row (Concurrency Safe)
-        Database-->>BedService: Bed Locked
-        BedService->>Database: Assign Patient to Bed
-        Database-->>BedService: Success
-        BedService->>System: Bed Assigned (ID 101)
-        System->>Database: Update Status (ADMITTED)
-        System->>NotificationService: Notify Ward Nurse
-    else Discharge
-        Doctor->>System: Discharge Patient
-        System->>BedService: Release Bed (if previously assigned)
-        BedService->>Database: Update Bed Status (Available)
-        System->>Database: Update Status (DISCHARGED, DischargeTime)
-        System->>NotificationService: Notify Billing
+    par Async Events
+        UseCase-)Mongo: Insert into AuditLogs
+        UseCase-)API: Emit Event 'BedAllocated'
     end
-
-    Note over System, Database: Audit Logging (Async)
-    System->>Database: Log Action (User, Action, Timestamp)
 ```
