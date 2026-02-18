@@ -1,44 +1,51 @@
 # Use Case Diagram
 
 ```mermaid
-usecaseDiagram
-    actor Receptionist
-    actor Nurse
-    actor Doctor
-    actor Admin
-    actor System
+flowchart LR
+    %% Actors
+    Receptionist((Receptionist))
+    Nurse((Nurse))
+    Doctor((Doctor))
+    Admin((Admin))
+    System((System))
 
-    package "Patient Management" {
-        usecase "Register Patient" as UC1
-        usecase "Update Patient Info" as UC2
-        usecase "View Patient History" as UC3
-    }
+    %% Patient Management Package
+    subgraph PatientManagement [Patient Management]
+        UC1([Register Patient])
+        UC2([Update Patient Info])
+        UC3([View Patient History])
+    end
 
-    package "Triage & Vitals" {
-        usecase "Perform Triage" as UC4
-        usecase "Record Vitals" as UC5
-        usecase "Escalate Priority" as UC6
-    }
+    %% Triage Package
+    subgraph TriageVitals [Triage & Vitals]
+        UC4([Perform Triage])
+        UC5([Record Vitals])
+        UC6([Escalate Priority])
+    end
 
-    package "Treatment & Workflow" {
-        usecase "Assign Doctor" as UC7
-        usecase "Perform Treatment" as UC8
-        usecase "Request Admission" as UC9
-        usecase "Discharge Patient" as UC10
-    }
+    %% Treatment Package
+    subgraph TreatmentWorkflow [Treatment & Workflow]
+        UC7([Assign Doctor])
+        UC8([Perform Treatment])
+        UC9([Request Admission])
+        UC10([Discharge Patient])
+    end
 
-    package "Resource Management" {
-        usecase "Allocate Bed" as UC11
-        usecase "Release Bed" as UC12
-        usecase "Manage Beds" as UC13
-    }
+    %% Resource Management Package
+    subgraph ResourceManagement [Resource Management]
+        UC11([Allocate Bed])
+        UC12([Release Bed])
+        UC13([Manage Beds])
+    end
 
-    package "Administration" {
-        usecase "Manage Users" as UC14
-        usecase "View Audit Logs" as UC15
-        usecase "Generate Reports" as UC16
-    }
-    
+    %% Admin Package
+    subgraph Administration [Administration]
+        UC14([Manage Users])
+        UC15([View Audit Logs])
+        UC16([Generate Reports])
+    end
+
+    %% Relationships
     Receptionist --> UC1
     Receptionist --> UC2
     
@@ -57,8 +64,9 @@ usecaseDiagram
     Admin --> UC15
     Admin --> UC16
 
-    System --> UC6 : Auto-escalate based on time
+    System --> UC6
     
-    UC9 ..> UC11 : <<include>>
-    UC10 ..> UC12 : <<include>>
+    %% Includes/Extends
+    UC9 -.-> UC11
+    UC10 -.-> UC12
 ```
