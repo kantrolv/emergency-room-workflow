@@ -96,7 +96,7 @@ The core of the system is the Patient State Machine. Transitions are strictly va
 *   **AuditLogs:** Compliance tracking.
 
 ### 8. Technology Stack (Recommended)
-*   **Languge:** TypeScript (Node.js) or Java/C#.
+*   **Languge:** TypeScript (Node.js).
 *   **Framework:** NestJS (Node) or Spring Boot (Java) - ideal for Clean Arch.
 *   **Database:** PostgreSQL (Relational, ACID compliance).
 *   **ORM:** TypeORM or Prisma / Hibernate.
